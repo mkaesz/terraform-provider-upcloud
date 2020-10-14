@@ -40,6 +40,11 @@ func resourceUpCloudServer() *schema.Resource {
 				Type:        schema.TypeString,
 				Computed:    true,
 			},
+			"metadata": {
+				Description: "Enable or disable the metadata service.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+			},
 			"zone": {
 				Description: "The zone in which the server will be hosted",
 				Type:        schema.TypeString,
@@ -357,6 +362,7 @@ func resourceUpCloudServerRead(ctx context.Context, d *schema.ResourceData, meta
 	d.Set("zone", server.Zone)
 	d.Set("cpu", server.CoreNumber)
 	d.Set("mem", server.MemoryAmount)
+	d.Set("metadata", server.Metadata)
 
 	networkInterfaces := []map[string]interface{}{}
 	var connIP string
@@ -464,6 +470,25 @@ func resourceUpCloudServerUpdate(ctx context.Context, d *schema.ResourceData, me
 		}
 	}
 
+	if d.HasChange("metadata") {
+		_, newMetadata := d.GetChange("metadata")
+
+		r := &request.ModifyServerRequest{
+			UUID: d.Id(),
+		}
+
+		if newMetadata.(bool) {
+			r.Metadata = upcloud.True
+		} else {
+			r.Metadata = upcloud.False
+		}
+
+		_, err := client.ModifyServer(r)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
+
 	if err := verifyServerStarted(d, meta); err != nil {
 		return diag.FromErr(err)
 	}
@@ -532,6 +557,13 @@ func buildServerOpts(d *schema.ResourceData, meta interface{}) (*request.CreateS
 	}
 	if attr, ok := d.GetOk("user_data"); ok {
 		r.UserData = attr.(string)
+	}
+	if attr, ok := d.GetOk("metadata"); ok {
+		if attr.(bool) {
+			r.Metadata = upcloud.True
+		} else {
+			r.Metadata = upcloud.False
+		}
 	}
 	if attr, ok := d.GetOk("plan"); ok {
 		r.Plan = attr.(string)
